@@ -1,5 +1,8 @@
 #######################################################################################################################
-# Some title here...
+# PROGRAM: r_informative-censoring.R
+# PURPOSE: Illustrate how to contruct inverse probability of censoring to address informative censoring
+# conditional on measured variables.
+# PROGRAMMER: initial draft by Paul Zivich. Modified by Chase/Catie.
 #
 # Variable key -
 #   id:         identifier for each participant
@@ -10,54 +13,125 @@
 #   t_true:     observed follow-up time without simulated loss-to-follow-up. Used to create true risk function
 #   delta_true: event indicator had no loss-to-follow-up occurred. Used to create true risk function
 #
-# Last edit: Paul Zivich 2020/01/30
+# Last edit: Chase Latour 2025/08/14
 #######################################################################################################################
 
+
+## Use the renv package to manage R packages in the project
+# If not yet installed, install the renv package on your machine
+# install.packages("renv")
+# Now, call in the renv library
+library(renv)
+
+# Now, install all packages in the renv package
+renv::restore()
+
+# Call in libraries that are needed
 library(survival)
 library(dplyr)
 library(ggplot2)
 
 # Global parameters
 end_of_follow_up <- 365
-setwd("C:/Users/zivic/Documents/Research Projects/Steve Cole/IPCW/supplement")
+#setwd("C:/Users/zivic/Documents/Research Projects/Steve Cole/IPCW/supplement")
 
-# Reading in data
-df <- read.csv("actg320_sim-censor.csv", header=TRUE, sep=',')
+# Read in data
+df <- read.csv("actg320_sim_censor.csv", header=TRUE, sep=',')
+
+
+
+
+
+
+
 
 ####################################################
-# 0: True risk functions
+# 0: Prepare and describe the cohort
+####################################################
+
+# Prepare the dataset for analysis
+df <- df %>% 
+  mutate(
+    # Create an indicator for LTFU before 365 days of follow-up
+    ltfu_efup = ifelse(ltfu == 1 & t < end_of_follow_up, 1, 0),
+    
+    # If there are any 0 follow-up times, add a small constant
+    t = ifelse(t == 0, 0.0001, t)
+  )
+
+# Investigate number censored due to LTFU prior to end_of_follow-up
+
+# Number LTFU 
+table(df$ltfu_efup)
+
+# Proportion LTFU
+prop.table(table(df$ltfu_efup))
+
+## Same but stratified by Z
+
+# Number LTFU 
+table(df$z, df$ltfu_efup)
+
+# Proportion LTFU
+prop.table(df$z, table(df$ltfu_efup))
+
+
+
+
+
+
+
+
+
+
+
+
+####################################################
+# 1: Calculate the true risk functions (i.e.,
+# ignoring the simulated LTFU)
 ####################################################
 
 # Data if no censoring had occurred
 kmt <- survfit(Surv(t_true, delta_true) ~ 1, data=df)
 true <- 1 - kmt$surv
 
-####################################################
-# 1: Bounds on informative censoring
-####################################################
 
-# Upper bound: all censored have the event at their lost to follow-up time
-df$delta_upper <- ifelse(df$ltfu==1, 1, df$delta)
-kmu <- survfit(Surv(t, delta_upper) ~ 1, data=df)
-upper <- data.frame(r_upper=1 - kmu$surv)
-upper$t <- kmu$time
 
-# Lower bound: all lost to follow-up don't have the event for full study period
-df$t_lower <- ifelse(df$ltfu==1, end_of_follow_up, df$t)
-kml <- survfit(Surv(t_lower, delta) ~ 1, data=df)
-lower <- data.frame(r_lower=1 - kml$surv)
-lower$t <- kml$time
 
-bounds <- merge(lower, upper, by='t')
+
+
 
 ####################################################
-# 2: IPCW - pooled logistic model
+# 2: Construct the IPCW using a pooled logistic 
+# model
 ####################################################
 
-# Converting to long data set
+##################
+#  STEP 1: From the person-level dataset, create a “long” dataset where each row 
+#  corresponds to one-unit (e.g., 1 day, week or month) of follow-up time for each person 
+
+# Create a new variable for the observed event or censoring time
 df$t_obs <- df$t
-dfl <- survSplit(Surv(t, delta)~., data=df, event="delta", cut=seq(1, end_of_follow_up))
+
+# Calculate the minimum t in the data
+min <- min(df$t)
+
+# Converting to long data set using 1-day intervals of follow-up
+dfl <- survSplit(Surv(t, delta)~., data=df, event="delta", cut=seq(min, end_of_follow_up))
+
+# Create an indicator for not being censored during that interval
 dfl$not_censored <- ifelse((dfl$ltfu==1) & (dfl$t_obs == dfl$t), 0, 1)
+
+##################
+#  STEP 2
+
+# Remove those intervals where an event occurs
+dfl_2 <- subset(dfl, delta == 0)
+
+
+
+##################
+#  STEP 2
 
 # Fitting pooled logistic model
 logit_den <- glm(not_censored ~ x + tstart + I(tstart^2) + I(tstart^3)+ I(x*tstart) + I(x*tstart^2) + I(x*tstart^3), data=dfl, family='binomial')
