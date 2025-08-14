@@ -123,7 +123,8 @@ dfl <- survSplit(Surv(t, delta)~., data=df, event="delta", cut=seq(min, end_of_f
 dfl$not_censored <- ifelse((dfl$ltfu==1) & (dfl$t_obs == dfl$t), 0, 1)
 
 ##################
-#  STEP 2
+#  STEP 2: Create a new dataset for the pooled logistic regression model 
+#  that excludes intervals where events occur. 
 
 # Remove those intervals where an event occurs
 dfl_2 <- subset(dfl, delta == 0)
