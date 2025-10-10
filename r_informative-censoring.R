@@ -73,7 +73,7 @@ prop.table(table(df$ltfu_efup))
 table(df$z, df$ltfu_efup)
 
 # Proportion LTFU
-prop.table(df$z, table(df$ltfu_efup))
+prop.table(table(df$z,df$ltfu_efup))
 
 
 
@@ -135,7 +135,7 @@ dfl_2 <- subset(dfl, delta == 0)
 #  STEP 2
 
 # Fitting pooled logistic model
-logit_den <- glm(not_censored ~ x + tstart + I(tstart^2) + I(tstart^3)+ I(x*tstart) + I(x*tstart^2) + I(x*tstart^3), data=dfl, family='binomial')
+logit_den <- glm(not_censored ~ z + tstart + I(tstart^2) + I(tstart^3)+ I(z*tstart) + I(z*tstart^2) + I(z*tstart^3), data=dfl, family='binomial')
 dfl$pr_c_den <- predict(logit_den, type='response') # predicted probabilities
 dfl <- dfl %>% 
   group_by(id) %>%
@@ -153,7 +153,7 @@ dfl$ipcw <- 1 / dfl$pr_c_den  # unstabilized IPCW
 
 # Estimating a IPC-weighted Kaplan-Meier
 kmw <- survfit(Surv(tstart, t, delta) ~ 1, data=dfl, weights=dfl$ipcw)
-
+ipcw <- 1-kmw$surv
 ####################################################
 # 3: naive Kaplan-Meier
 ####################################################
@@ -167,9 +167,6 @@ obs <- 1 - kmo$surv
 ####################################################
 
 ggplot() + theme_light() + 
-  geom_rect(aes(xmin = bounds$t, xmax = lead(bounds$t), 
-                ymin = bounds$r_lower, ymax = bounds$r_upper), 
-            fill = "gray", alpha = 0.25) +
   geom_step(aes(x=kmt$time, y=true), color="gray") + 
   geom_step(aes(x=kmo$time, y=obs), color="black") +
   geom_step(aes(x=kmw$time, y=ipcw), color="black", linetype="dashed") +
