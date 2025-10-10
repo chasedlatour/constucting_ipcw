@@ -110,7 +110,7 @@ actg_long_3 <- actg_long_2 |>
   dplyr::filter(!all(not_censored == 1), .by = tstart)
 
 ### Fit pooled logistic model ----
-logit_den <- glm(not_censored ~ z + tstart_f, 
+logit_den <- glm(not_censored ~ z*tstart_f, 
                  data=actg_long_3, family='binomial')
 
 ### Predicted probabilities of remaining uncensored in each time interval ----
@@ -120,7 +120,7 @@ actg_long_3$pr_c_den <- predict(logit_den,
 
 ## STEP 4: Calculate cumulative probability of remaining uncensored ----
 
-actg_final <- actg_long |> 
+actg_unstab <- actg_long |> 
   ## Merge the predicted probabilities onto the original dataset with 
   ##   all event times
   dplyr::left_join(actg_long_3 |> 
@@ -130,42 +130,85 @@ actg_final <- actg_long |>
     ## Replace missing predicted probabilities with 1
     pr_c_den = replace(pr_c_den, is.na(pr_c_den), 1),
     ## Cumulative probability by person ID
-    cum_pr_c_den = cumprod(pr_c_den),
+    cum_pr_c_den = cumprod(pr_c_den), default = 1,
     .by = id
   )
 
 ## STEP 5: Calculate interval specific weights ----
-actg_final$ipcw <- 1 / actg_final$cum_pr_c_den  # unstabilized IPCW
+actg_unstab$ipcw <- 1 / actg_unstab$cum_pr_c_den  # unstabilized IPCW
 
-# STABILIZED IPCW ALTERNATIVE
-# logit_num <- glm(not_censored ~ tstart + I(tstart^2) + I(tstart^3), data=actg_ccl, family='binomial')
-# actg_ccl$pr_c_num <- predict(logit_num, type='response') # predicted probabilities
-# actg_ccl <- actg_ccl %>%
-#  group_by(id) %>%
-#  mutate(pr_c_num = cumprod(pr_c_num)) # cumulative product by ID
-# actg_ccl$ipcw <- actg_ccl$pr_c_num / actg_ccl$pr_c_den  # stabilized IPCW
 
-# Estimating a IPC-weighted Kaplan-Meier
-kmw <- survfit(Surv(tstart, t, delta) ~ 1, data=actg_ccl, weights=actg_ccl$ipcw)
 
-####################################################
-# 3: naive Kaplan-Meier
-####################################################
 
-# Observed data only
+# 3: Estimate Kaplan-Meier functions -----------------------------------------
+
+## IPC-weighted Kaplan-Meier ----
+kmw <- survfit(Surv(tstart, t, delta) ~ 1, 
+               data=actg_unstab, 
+               weights = ipcw)
+
+ipcw <- 1-kmw$surv
+
+## Naive Kaplan-Meier on "observed" data ----
 kmo <- survfit(Surv(t, delta) ~ 1, data=actg_cc)
 obs <- 1 - kmo$surv
 
-####################################################
-# Creating Plot
-####################################################
 
-ggplot() + theme_light() + 
-  geom_rect(aes(xmin = bounds$t, xmax = lead(bounds$t), 
-                ymin = bounds$r_lower, ymax = bounds$r_upper), 
-            fill = "gray", alpha = 0.25) +
-  geom_step(aes(x=kmt$time, y=true), color="gray") + 
-  geom_step(aes(x=kmo$time, y=obs), color="black") +
-  geom_step(aes(x=kmw$time, y=ipcw), color="black", linetype="dashed") +
-  xlab("t (days)") +
-  ylab("Risk at t")
+
+# Plot naive, true, and IPCW risk functions -------------------------------
+
+dplyr::bind_rows(
+  data.frame(time=kmt$time, risk=true, type="Truth"),
+  data.frame(time=kmo$time, risk=obs, type="Naive"),
+  data.frame(time=kmw$time, risk=ipcw, type="IPCW")
+) |> 
+  dplyr::mutate(
+    type = factor(type, levels = c("Truth", "Naive", "IPCW"))
+  ) |> 
+  ggplot(aes(x = time, y = risk, group = type, linetype = type,
+             color = type)) + 
+  theme_classic() + 
+  geom_step() + 
+  scale_x_continuous(breaks = c(0, 90, 180, 270, 365)) + 
+  scale_y_continuous(limits = c(0, 0.15)) + 
+  xlab("Days") +
+  ylab("Cumulative incidence")
+
+
+
+
+
+
+# ALTERNATIVE: Stabilized IPCW ----
+
+### Estimate numerator used pooled logit ----
+
+actg_long_3$pr_c_num <- predict(
+  glm(not_censored ~ tstart_f, 
+      data=actg_long_3, 
+      family='binomial'),
+  type = "response"
+)
+
+### Calculate stabilized weights ----
+actg_stab <- actg_long |> 
+  ## Merge the predicted probabilities onto the original dataset with 
+  ##   all event times
+  dplyr::left_join(actg_long_3 |> 
+                     dplyr::select(id, tstart, pr_c_den, pr_c_num),
+                   by = dplyr::join_by(id, tstart)) |> 
+  dplyr::mutate(
+    ## Replace missing predicted probabilities with 1
+    pr_c_den = replace(pr_c_den, is.na(pr_c_den), 1),
+    pr_c_num = replace(pr_c_num, is.na(pr_c_num), 1),
+    
+    ### Cumulative probability by person ID ----
+    cum_pr_c_den = cumprod(pr_c_den),
+    cum_pr_c_num = cumprod(pr_c_num),
+    
+    ### Stabilized IPCW ----
+    icpw = cum_pr_c_num/cum_pr_c_den,
+    
+    .by = id
+  )
+
