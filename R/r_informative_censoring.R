@@ -1,165 +1,159 @@
-#######################################################################################################################
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # PROGRAM: r_informative-censoring.R
-# PURPOSE: Illustrate how to contruct inverse probability of censoring to address informative censoring
-# conditional on measured variables.
+# PURPOSE: Illustrate how to construct inverse probability of censoring to 
+#          address informative censoring conditional on measured variables.
 # PROGRAMMER: initial draft by Paul Zivich. Modified by Chase/Catie.
 #
-# Variable key -
+# VARIABLE KEY -
 #   id:         identifier for each participant
 #   t:          last observed follow-up time. Includes simulated loss-to-follow-up
-#   ltfu:       indicator of whether the participant was lost-to-follow-up. Based on simulated data
+#   ltfu:       simulated indicator of whether the participant was lost-to-follow-up
 #   delta:      event indicator. 1=AIDs or death, 0=no event
-#   x:          measured variable related to loss to follow-up and the event. Simulated
-#   t_true:     observed follow-up time without simulated loss-to-follow-up. Used to create true risk function
-#   delta_true: event indicator had no loss-to-follow-up occurred. Used to create true risk function
+#   z:          Simulated measured variable related to loss to follow-up and the event
+#   t_true:     observed follow-up time without simulated loss-to-follow-up
+#   delta_true: event indicator had no loss-to-follow-up occurred
 #
-# Last edit: Chase Latour 2025/08/14
-#######################################################################################################################
+# LAST EDIT: Chase Latour 2025/08/14
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+# Set up environment ------------------------------------------------------
 
-## Use the renv package to manage R packages in the project
-# If not yet installed, install the renv package on your machine
+## Use the renv package to manage R packages in the project ----
+## If not yet installed, install the renv package on your machine
 # install.packages("renv")
-# Now, call in the renv library
-library(renv)
 
-# Now, install all packages in the renv package
+## Install all packages recorded in the renv lockfile. 
+
 renv::restore()
 
-# Call in libraries that are needed
+## Package libraries ----
 library(survival)
 library(dplyr)
 library(ggplot2)
 
-# Global parameters
-end_of_follow_up <- 365
-#setwd("C:/Users/zivic/Documents/Research Projects/Steve Cole/IPCW/supplement")
+## Global parameters ----
+end_of_follow_up <- 365  # end of follow-up time for risk estimation
 
-# Read in data
-df <- read.csv("actg320_sim_censor.csv", header=TRUE, sep=',')
-
+## Read in data ----
+actg_cc <- read.csv("data/actg320_sim_censor.csv", header=TRUE, sep=',')
 
 
+# 0: Prepare and describe cohort ------------------------------------------
+
+## Indicator if LTFU prior to end_of_follow-up
+actg_cc$ltfu_efup <- with(actg_cc, as.numeric(ltfu == 1 & t < end_of_follow_up))
+
+## Investigate number censored due to LTFU prior to end_of_follow-up ----
+
+### Number (Percent) LTFU ----
+sprintf("%s (%3.1f%%) were LTFU", 
+        table(actg_cc$ltfu_efup)[2],
+        100*prop.table(table(actg_cc$ltfu_efup))[2])
 
 
+### LTFU Stratified by Z ----
 
-
-
-####################################################
-# 0: Prepare and describe the cohort
-####################################################
-
-# Prepare the dataset for analysis
-df <- df %>% 
-  mutate(
-    # Create an indicator for LTFU before 365 days of follow-up
-    ltfu_efup = ifelse(ltfu == 1 & t < end_of_follow_up, 1, 0),
-    
-    # If there are any 0 follow-up times, add a small constant
-    t = ifelse(t == 0, 0.0001, t)
-  )
-
-# Investigate number censored due to LTFU prior to end_of_follow-up
-
-# Number LTFU 
-table(df$ltfu_efup)
-
-# Proportion LTFU
-prop.table(table(df$ltfu_efup))
-
-## Same but stratified by Z
-
-# Number LTFU 
-table(df$z, df$ltfu_efup)
-
-# Proportion LTFU
-prop.table(df$z, table(df$ltfu_efup))
+rprop <- prop.table(table(actg_cc$z, actg_cc$ltfu_efup), margin = 1)
+sprintf("Among people with CD4 < 68.5 cells/mm, %3.1f%% were LTFU",
+        100*rprop[1,2])
+sprintf("Among people with CD4 >=68.5 cells/mm, %3.1f%% were LTFU",
+        100*rprop[2,2])
 
 
 
+# 1: Calculate true risk functions ignoring simulated LTFU ---------------
 
-
-
-
-
-
-
-
-
-####################################################
-# 1: Calculate the true risk functions (i.e.,
-# ignoring the simulated LTFU)
-####################################################
-
-# Data if no censoring had occurred
-kmt <- survfit(Surv(t_true, delta_true) ~ 1, data=df)
+## KM estimator for Risk function had no censoring had occurred ----
+kmt <- survfit(Surv(t_true, delta_true) ~ 1, data=actg_cc)
 true <- 1 - kmt$surv
 
 
 
+# 2: Construct IPCW using pooled logistic model ---------------------------
+
+## STEP 1: Create long dataset ----
+### From the person-level dataset, create a “long” dataset where each row 
+###   corresponds to one-unit (e.g., 1 day, week or month) of follow-up time for 
+###   each person 
+
+### 1a. Create a placeholder for the full observed event or censoring time ----
+actg_cc$t_obs <- actg_cc$t
+
+### 1b. Converting to long data set with 1-day intervals of follow-up ----
+actg_long <- survSplit(Surv(t, delta)~., 
+                       data=actg_cc, 
+                       # Variable with event indicator
+                       event="delta", 
+                       # Create one day intervals from first time to end of FUP
+                       cut=seq(min(actg_cc$t), end_of_follow_up))
+
+actg_long$tstart_f <- as.factor(actg_long$tstart)
+### 1c. Create time-varying censor indicator for each 1-day interval ----
+actg_long$not_censored <- with(actg_long, as.numeric(ltfu!=1 | (t_obs != t)))
+
+### Inspect resulting data
+head(actg_long)
+
+
+## STEP 2: Create dataset that excludes events --------
+### For the pooled logistic regression censoring model need dataset that excludes 
+###   intervals where events occur. 
+
+### Remove those intervals where an event occurs ----
+actg_long_2 <- subset(actg_long, delta == 0)
 
 
 
+## STEP 3: Estimate interval specific censoring probabilities ----
+actg_long_3 <- actg_long_2 |> 
+  # Remove intervals where everyone is uncensored (not needed for model fitting)  
+  dplyr::filter(!all(not_censored == 1), .by = tstart)
 
-####################################################
-# 2: Construct the IPCW using a pooled logistic 
-# model
-####################################################
+### Fit pooled logistic model ----
+logit_den <- glm(not_censored ~ z + tstart_f, 
+                 data=actg_long_3, family='binomial')
 
-##################
-#  STEP 1: From the person-level dataset, create a “long” dataset where each row 
-#  corresponds to one-unit (e.g., 1 day, week or month) of follow-up time for each person 
-
-# Create a new variable for the observed event or censoring time
-df$t_obs <- df$t
-
-# Calculate the minimum t in the data
-min <- min(df$t)
-
-# Converting to long data set using 1-day intervals of follow-up
-dfl <- survSplit(Surv(t, delta)~., data=df, event="delta", cut=seq(min, end_of_follow_up))
-
-# Create an indicator for not being censored during that interval
-dfl$not_censored <- ifelse((dfl$ltfu==1) & (dfl$t_obs == dfl$t), 0, 1)
-
-##################
-#  STEP 2: Create a new dataset for the pooled logistic regression model 
-#  that excludes intervals where events occur. 
-
-# Remove those intervals where an event occurs
-dfl_2 <- subset(dfl, delta == 0)
+### Predicted probabilities of remaining uncensored in each time interval ----
+actg_long_3$pr_c_den <- predict(logit_den, 
+                              type='response') # predicted probabilities
 
 
+## STEP 4: Calculate cumulative probability of remaining uncensored ----
 
-##################
-#  STEP 2
+actg_final <- actg_long |> 
+  ## Merge the predicted probabilities onto the original dataset with 
+  ##   all event times
+  dplyr::left_join(actg_long_3 |> 
+                     dplyr::select(id, tstart, pr_c_den),
+                   by = dplyr::join_by(id, tstart)) |> 
+  dplyr::mutate(
+    ## Replace missing predicted probabilities with 1
+    pr_c_den = replace(pr_c_den, is.na(pr_c_den), 1),
+    ## Cumulative probability by person ID
+    cum_pr_c_den = cumprod(pr_c_den),
+    .by = id
+  )
 
-# Fitting pooled logistic model
-logit_den <- glm(not_censored ~ x + tstart + I(tstart^2) + I(tstart^3)+ I(x*tstart) + I(x*tstart^2) + I(x*tstart^3), data=dfl, family='binomial')
-dfl$pr_c_den <- predict(logit_den, type='response') # predicted probabilities
-dfl <- dfl %>% 
-  group_by(id) %>%
-  mutate(pr_c_den = cumprod(pr_c_den)) # cumulative product by ID
-
-dfl$ipcw <- 1 / dfl$pr_c_den  # unstabilized IPCW
+## STEP 5: Calculate interval specific weights ----
+actg_final$ipcw <- 1 / actg_final$cum_pr_c_den  # unstabilized IPCW
 
 # STABILIZED IPCW ALTERNATIVE
-# logit_num <- glm(not_censored ~ tstart + I(tstart^2) + I(tstart^3), data=dfl, family='binomial')
-# dfl$pr_c_num <- predict(logit_num, type='response') # predicted probabilities
-# dfl <- dfl %>%
+# logit_num <- glm(not_censored ~ tstart + I(tstart^2) + I(tstart^3), data=actg_ccl, family='binomial')
+# actg_ccl$pr_c_num <- predict(logit_num, type='response') # predicted probabilities
+# actg_ccl <- actg_ccl %>%
 #  group_by(id) %>%
 #  mutate(pr_c_num = cumprod(pr_c_num)) # cumulative product by ID
-# dfl$ipcw <- dfl$pr_c_num / dfl$pr_c_den  # stabilized IPCW
+# actg_ccl$ipcw <- actg_ccl$pr_c_num / actg_ccl$pr_c_den  # stabilized IPCW
 
 # Estimating a IPC-weighted Kaplan-Meier
-kmw <- survfit(Surv(tstart, t, delta) ~ 1, data=dfl, weights=dfl$ipcw)
+kmw <- survfit(Surv(tstart, t, delta) ~ 1, data=actg_ccl, weights=actg_ccl$ipcw)
 
 ####################################################
 # 3: naive Kaplan-Meier
 ####################################################
 
 # Observed data only
-kmo <- survfit(Surv(t, delta) ~ 1, data=df)
+kmo <- survfit(Surv(t, delta) ~ 1, data=actg_cc)
 obs <- 1 - kmo$surv
 
 ####################################################
