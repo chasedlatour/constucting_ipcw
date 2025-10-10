@@ -8,8 +8,6 @@
 ## Use the renv package to manage R packages in the project
 # If not yet installed, install the renv package on your machine
 # install.packages("renv")
-# Now, call in the renv library
-library(renv)
 
 # Now, install all packages in the renv package
 renv::restore()
