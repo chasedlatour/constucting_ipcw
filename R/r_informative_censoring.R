@@ -89,7 +89,7 @@ actg_long <- survSplit(Surv(t, delta)~.,
 
 actg_long$tstart_f <- as.factor(actg_long$tstart)
 ### 1c. Create time-varying censor indicator for each 1-day interval ----
-actg_long$not_censored <- with(actg_long, as.numeric(ltfu!=1 | (t_obs != t)))
+actg_long$not_censored <- with(actg_long, as.numeric(!(ltfu == 1 & (t_obs == t))))
 
 ### Inspect resulting data
 head(actg_long)
@@ -101,6 +101,7 @@ head(actg_long)
 
 ### Remove those intervals where an event occurs ----
 actg_long_2 <- subset(actg_long, delta == 0)
+actg_long_2 <- actg_long
 
 
 
@@ -130,7 +131,7 @@ actg_unstab <- actg_long |>
     ## Replace missing predicted probabilities with 1
     pr_c_den = replace(pr_c_den, is.na(pr_c_den), 1),
     ## Cumulative probability by person ID
-    cum_pr_c_den = cumprod(pr_c_den), default = 1,
+    cum_pr_c_den = cumprod(pr_c_den),
     .by = id
   )
 
