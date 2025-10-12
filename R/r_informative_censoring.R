@@ -182,19 +182,32 @@ dplyr::bind_rows(
   data.frame(time=kmw$time, risk=ipcw, type="IPCW")
 ) |> 
   dplyr::mutate(
-    type = factor(type, levels = c("Truth", "Naive", "IPCW", "IPCW Parametric"))
+    type = factor(type, levels = c("Truth", "IPCW", "Naive"))
   ) |> 
-  ggplot(aes(x = time, y = risk, group = type, linetype = type,
+  ggplot(aes(x = time, y = risk, linetype = type, linewidth = type,
              color = type)) + 
   theme_classic() + 
-  theme(legend.position = "bottom") + 
   geom_step() + 
+  scale_linewidth_manual(values = c("Truth" = 0.4, "Naive" = 0.65, "IPCW" = 0.5)) +
+  theme(
+    legend.position = c(0.2, 0.8),  # inside bottom-right
+    legend.background = element_rect(fill = alpha("white", 0.8), color = NA),
+    legend.key = element_blank(),
+    legend.direction = "vertical",
+    legend.box.background = element_rect(color = "black", linewidth = 0.3),
+    legend.title = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 12)
+  ) +
   scale_x_continuous(breaks = c(0, 90, 180, 270, 365)) + 
   scale_y_continuous(breaks = seq(0, 0.12, by = 0.02)) + 
+  scale_color_manual(values = c("black", "black", "black")) +
   xlab("Days") +
   ylab("Cumulative incidence") 
 
-
+ggsave(filename = "../km_plot.png", width = 6, 
+       height = 4, units = "in", dpi = 300)
 
 
 
