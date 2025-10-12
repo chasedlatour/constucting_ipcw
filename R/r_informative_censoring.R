@@ -1,5 +1,5 @@
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # PROGRAM: r_informative-censoring.R
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # PURPOSE: Illustrate how to construct inverse probability of censoring to 
 #          address informative censoring conditional on measured variables.
 # PROGRAMMER: initial draft by Paul Zivich. Modified by Chase/Catie.
@@ -35,9 +35,27 @@ library(ggplot2)
 end_of_follow_up <- 365  # end of follow-up time for risk estimation
 
 ## Read in data ----
-actg_cc <- read.csv("data/actg320_sim_censor.csv", header=TRUE, sep=',')
+actg_cc_r <- read.csv("data/actg320_sim_censor.csv", 
+                   header=TRUE, sep=',') |> 
+  dplyr::mutate(t = if_else(t == 0, 0.0001, t))
 
+# Below is just checking the number of events in each combo in the
+# R generated code versus the Python 
+# actg_cc_z <- read.csv("../paul-code/actg320_sim-censor.csv") |> 
+#   dplyr::mutate(z = x)
+# 
+# actg_cc_z |>
+#  group_by(x, delta_true) |>
+#  tally() |>
+#  mutate(prop = n/sum(n))
+# 
+# actg_cc_r |>
+#  group_by(z, delta_true) |>
+#  tally() |>
+#  mutate(prop = n/sum(n))
 
+actg_cc <- actg_cc_r
+#actg_cc <- df
 # 0: Prepare and describe cohort ------------------------------------------
 
 ## Indicator if LTFU prior to end_of_follow-up
@@ -58,8 +76,6 @@ sprintf("Among people with CD4 < 68.5 cells/mm, %3.1f%% were LTFU",
         100*rprop[1,2])
 sprintf("Among people with CD4 >=68.5 cells/mm, %3.1f%% were LTFU",
         100*rprop[2,2])
-
-
 
 # 1: Calculate true risk functions ignoring simulated LTFU ---------------
 
@@ -85,9 +101,9 @@ actg_long <- survSplit(Surv(t, delta)~.,
                        # Variable with event indicator
                        event="delta", 
                        # Create one day intervals from first time to end of FUP
-                       cut=seq(min(actg_cc$t), end_of_follow_up))
+                       cut=seq(1, end_of_follow_up))
 
-actg_long$tstart_f <- as.factor(actg_long$tstart)
+actg_long$t_f <- as.factor(actg_long$t)
 ### 1c. Create time-varying censor indicator for each 1-day interval ----
 actg_long$not_censored <- with(actg_long, as.numeric(!(ltfu == 1 & (t_obs == t))))
 
@@ -101,7 +117,7 @@ head(actg_long)
 
 ### Remove those intervals where an event occurs ----
 actg_long_2 <- subset(actg_long, delta == 0)
-actg_long_2 <- actg_long
+
 
 
 
@@ -110,8 +126,9 @@ actg_long_3 <- actg_long_2 |>
   # Remove intervals where everyone is uncensored (not needed for model fitting)  
   dplyr::filter(!all(not_censored == 1), .by = tstart)
 
+
 ### Fit pooled logistic model ----
-logit_den <- glm(not_censored ~ z*tstart_f, 
+logit_den <- glm(not_censored ~ z*t_f, 
                  data=actg_long_3, family='binomial')
 
 ### Predicted probabilities of remaining uncensored in each time interval ----
@@ -125,18 +142,19 @@ actg_unstab <- actg_long |>
   ## Merge the predicted probabilities onto the original dataset with 
   ##   all event times
   dplyr::left_join(actg_long_3 |> 
-                     dplyr::select(id, tstart, pr_c_den),
-                   by = dplyr::join_by(id, tstart)) |> 
+                     dplyr::select(id, t_f, pr_c_den),
+                   by = dplyr::join_by(id, t_f)) |> 
   dplyr::mutate(
     ## Replace missing predicted probabilities with 1
     pr_c_den = replace(pr_c_den, is.na(pr_c_den), 1),
     ## Cumulative probability by person ID
     cum_pr_c_den = cumprod(pr_c_den),
+    lag_cum_pr_c_den = lag(cum_pr_c_den, default = 1),
     .by = id
   )
 
 ## STEP 5: Calculate interval specific weights ----
-actg_unstab$ipcw <- 1 / actg_unstab$cum_pr_c_den  # unstabilized IPCW
+actg_unstab$ipcw <- 1 / actg_unstab$lag_cum_pr_c_den  # unstabilized IPCW
 
 
 
@@ -164,17 +182,17 @@ dplyr::bind_rows(
   data.frame(time=kmw$time, risk=ipcw, type="IPCW")
 ) |> 
   dplyr::mutate(
-    type = factor(type, levels = c("Truth", "Naive", "IPCW"))
+    type = factor(type, levels = c("Truth", "Naive", "IPCW", "IPCW Parametric"))
   ) |> 
   ggplot(aes(x = time, y = risk, group = type, linetype = type,
              color = type)) + 
   theme_classic() + 
+  theme(legend.position = "bottom") + 
   geom_step() + 
   scale_x_continuous(breaks = c(0, 90, 180, 270, 365)) + 
-  scale_y_continuous(limits = c(0, 0.15)) + 
+  scale_y_continuous(breaks = seq(0, 0.12, by = 0.02)) + 
   xlab("Days") +
-  ylab("Cumulative incidence")
-
+  ylab("Cumulative incidence") 
 
 
 
@@ -183,33 +201,33 @@ dplyr::bind_rows(
 # ALTERNATIVE: Stabilized IPCW ----
 
 ### Estimate numerator used pooled logit ----
-
-actg_long_3$pr_c_num <- predict(
-  glm(not_censored ~ tstart_f, 
-      data=actg_long_3, 
-      family='binomial'),
-  type = "response"
-)
-
-### Calculate stabilized weights ----
-actg_stab <- actg_long |> 
-  ## Merge the predicted probabilities onto the original dataset with 
-  ##   all event times
-  dplyr::left_join(actg_long_3 |> 
-                     dplyr::select(id, tstart, pr_c_den, pr_c_num),
-                   by = dplyr::join_by(id, tstart)) |> 
-  dplyr::mutate(
-    ## Replace missing predicted probabilities with 1
-    pr_c_den = replace(pr_c_den, is.na(pr_c_den), 1),
-    pr_c_num = replace(pr_c_num, is.na(pr_c_num), 1),
-    
-    ### Cumulative probability by person ID ----
-    cum_pr_c_den = cumprod(pr_c_den),
-    cum_pr_c_num = cumprod(pr_c_num),
-    
-    ### Stabilized IPCW ----
-    icpw = cum_pr_c_num/cum_pr_c_den,
-    
-    .by = id
-  )
+# 
+# actg_long_3$pr_c_num <- predict(
+#   glm(not_censored ~ t_f, 
+#       data=actg_long_3, 
+#       family='binomial'),
+#   type = "response"
+# )
+# 
+# ### Calculate stabilized weights ----
+# actg_stab <- actg_long |> 
+#   ## Merge the predicted probabilities onto the original dataset with 
+#   ##   all event times
+#   dplyr::left_join(actg_long_3 |> 
+#                      dplyr::select(id, t_f, pr_c_den, pr_c_num),
+#                    by = dplyr::join_by(id, t_f)) |> 
+#   dplyr::mutate(
+#     ## Replace missing predicted probabilities with 1
+#     pr_c_den = replace(pr_c_den, is.na(pr_c_den), 1),
+#     pr_c_num = replace(pr_c_num, is.na(pr_c_num), 1),
+#     
+#     ### Cumulative probability by person ID ----
+#     cum_pr_c_den = cumprod(pr_c_den),
+#     cum_pr_c_num = cumprod(pr_c_num),
+#     
+#     ### Stabilized IPCW ----
+#     sipcw = lag(cum_pr_c_num/cum_pr_c_den, default = 1),
+#     
+#     .by = id
+#   )
 
