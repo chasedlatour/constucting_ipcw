@@ -53,7 +53,6 @@ sprintf("Risk difference of %3.2f (95%% CI: %3.2f, %3.2f)",
 
 
 
-
 # Induce differential censoring -------------------------------------------
 
 ## According to the value of cd4 cutoff
@@ -90,7 +89,14 @@ colnames(tab) <- c("Not LTFU", "LTFU")
 rprop <- prop.table(tab, margin = 1)
 sprintf("Among people with z = 0, %3.1f%% were LTFU",
         100*rprop[1,2])
-sprintf("Among people withz = 1, %3.1f%% were LTFU",
+sprintf("Among people with z = 1, %3.1f%% were LTFU",
+        100*rprop[2,2])
+
+## Outcome proportions (row risk by Z) ----
+rprop <- prop.table(table(actg_cc$z, actg_cc$delta_true), margin = 1)
+sprintf("Among people with Z=0, %3.1f%% experienced an outcome",
+        100*rprop[1,2])
+sprintf("Among people with Z=1, %3.1f%% experienced an outcome",
         100*rprop[2,2])
 
 

@@ -22,40 +22,30 @@
 ## If not yet installed, install the renv package on your machine
 # install.packages("renv")
 
-## Install all packages recorded in the renv lockfile. 
-
+## Install all packages recorded in the renv lockfile. Some code will not
+## work if the correct version of R or the package is not uploaded.
 renv::restore()
 
 ## Package libraries ----
 library(survival)
 library(dplyr)
 library(ggplot2)
+library(data.table)
 
 ## Global parameters ----
 end_of_follow_up <- 365  # end of follow-up time for risk estimation
 
+
+
 ## Read in data ----
-actg_cc_r <- read.csv("data/actg320_sim_censor.csv", 
+actg_cc <- read.csv("data/actg320_sim_censor.csv", 
                    header=TRUE, sep=',') |> 
-  dplyr::mutate(t = if_else(t == 0, 0.0001, t))
+  dplyr::mutate(t = if_else(t == 0, 0.0001, t)) # ADDED as.double()
 
-# Below is just checking the number of events in each combo in the
-# R generated code versus the Python 
-# actg_cc_z <- read.csv("../paul-code/actg320_sim-censor.csv") |> 
-#   dplyr::mutate(z = x)
-# 
-# actg_cc_z |>
-#  group_by(x, delta_true) |>
-#  tally() |>
-#  mutate(prop = n/sum(n))
-# 
-# actg_cc_r |>
-#  group_by(z, delta_true) |>
-#  tally() |>
-#  mutate(prop = n/sum(n))
 
-actg_cc <- actg_cc_r
-#actg_cc <- df
+
+
+
 # 0: Prepare and describe cohort ------------------------------------------
 
 ## Indicator if LTFU prior to end_of_follow-up
@@ -72,9 +62,9 @@ sprintf("%s (%3.1f%%) were LTFU",
 ### LTFU Stratified by Z ----
 
 rprop <- prop.table(table(actg_cc$z, actg_cc$ltfu_efup), margin = 1)
-sprintf("Among people with CD4 < 68.5 cells/mm, %3.1f%% were LTFU",
+sprintf("Among people with Z=0, %3.1f%% were LTFU",
         100*rprop[1,2])
-sprintf("Among people with CD4 >=68.5 cells/mm, %3.1f%% were LTFU",
+sprintf("Among people with Z=1, %3.1f%% were LTFU",
         100*rprop[2,2])
 
 # 1: Calculate true risk functions ignoring simulated LTFU ---------------
