@@ -27,33 +27,31 @@ actg <- fread("data/actg320.23nov16.dat") |>
   setnames(c("id", "male", "black", "hispanic", "idu", "art", "delta", "drop", 
              "r", "age", "karnof", "days", "cd4", "stop"))
 
+
+
+
+
 ## Subset to 548 people in control arm with complete follow-up ----
 ### This will serve as the population in which we aim to estimate
 ### risks with IPCW (actg_cc = actg complete case)
 actg_cc <- actg[art == 0 & drop == 0]
 
-# Dichotomize CD4 count ---------------------------------------------------
-
-## We are interested in dichotomizing CD4 cell count to create the variable `Z`. 
-## CD4 cell count has a strong relationship with the outcome. 
-
-## First, inspect the distribution ----
-hist(actg_cc$cd4)
-summary(actg_cc$cd4)
-
-# The median is 68.5 -- discretize at 68. 
 
 
-## Create bernoulli variable that predicts outcome ----
+
+
+## Create Bernoulli variable that predicts outcome ----
 actg_cc[, cutoff := rbinom(nrow(actg_cc), 1, prob = 0.1*actg_cc[['delta']] + 0.92*(1-actg_cc[['delta']]))]
 
-## Confirm that we see different risk of the outcome across the cutoff strata for CD4
+## Confirm that we see different risk of the outcome across the cutoff strata 
 ## Risk difference (simple linear model) with Wald Confidence Intervals ----
 
 lmodel <- lm(delta ~ cutoff, data = actg_cc)
 
 sprintf("Risk difference of %3.2f (95%% CI: %3.2f, %3.2f)", 
         coef(lmodel)[2], confint(lmodel)[2,1], confint(lmodel)[2,2])
+
+
 
 
 # Induce differential censoring -------------------------------------------
