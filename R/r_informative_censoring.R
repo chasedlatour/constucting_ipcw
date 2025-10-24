@@ -97,6 +97,7 @@ actg_long$t_f <- as.factor(actg_long$t)
 ### 1c. Create time-varying censor indicator for each 1-day interval ----
 actg_long$not_censored <- with(actg_long, as.numeric(!(ltfu == 1 & (t_obs == t))))
 
+
 ### Inspect resulting data
 head(actg_long)
 
