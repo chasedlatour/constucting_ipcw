@@ -27,10 +27,6 @@ actg <- fread("data/actg320.23nov16.dat") |>
   setnames(c("id", "male", "black", "hispanic", "idu", "art", "delta", "drop", 
              "r", "age", "karnof", "days", "cd4", "stop"))
 
-
-
-
-
 ## Subset to 548 people in control arm with complete follow-up ----
 ### This will serve as the population in which we aim to estimate
 ### risks with IPCW (actg_cc = actg complete case)
