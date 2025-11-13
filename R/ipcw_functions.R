@@ -152,24 +152,7 @@ compare_cumul_inc <- function(df,
     )
   )
   
-  ## If the truth is in the data, fit KM for truth
-  
-  if (any(!c("true_t", "true_delta") %in% colnames(df))){
-    warning("df missing true_t and true_delta - truth won't be plotted")
-  }
-  else{
-    kmt <- survfit(Surv(true_t, true_delta) ~ 1, 
-                   data=df)
-    h <- bind_rows(
-      dplyr::tibble(
-        type = "Truth",
-        time = kmt$time,
-        risk = 1-kmt$surv
-      ),
-      h
-    )
-  }
-  
+ 
   ## Create grouped plot
   p <- h |> 
     ggplot(aes(x = time, color = type, y = risk)) +
