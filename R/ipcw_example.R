@@ -23,7 +23,10 @@ lau <- cutoff_followup(end_of_fup = end_time,
 
 
 lau$t <- as.integer(lau$t)
+# combine admin censoring and art censoring
+lau$cens <- as.numeric(lau_cc$eventtype %in% 0:1)
 
+# descriptive statistics on censoring
 
 # Create quadratic restricted splines for CD4 count -----------------------
 
@@ -39,10 +42,11 @@ lau_cc <- cbind(lau, cd4_splines)
 
 # Convert data to long ----------------------------------------------------
 
+# Step 1
 lau_long <- convert_to_long(lau_cc,
                             event_var = dthev, 
-                            censor_var = artev,
-                            end_of_fup = 365*end_time,
+                            censor_var = cens,
+                            end_of_fup = ceiling(365.25*end_time),
                             interval_length = 1)
 
 
@@ -64,7 +68,7 @@ lau_long_cc <- cbind(lau_long, time_splines)
 
 # Estimate IPCW & add to data frame -------------------------------
 
-# get weighted dataframe
+# Steps 2 - 5
 weighted_df <- ipcw(lau_long_cc,
                     # Modeling time and CD4 as restricted quadratic splines. 
                     # The spline basis for time is interacted with the CD4 spline
@@ -80,7 +84,8 @@ summary(weighted_df$ipcw)
 
 # Estimate weighted and naive incidence functions and compare -------------
 
+# Step 6
 # compare IP cumulative incidence function + naive cumulative incidence. 
 results <- compare_cumul_inc(lau, weighted_df, dthev)
-results$cum_inc_plot
-
+results$cum_inc_plot 
+.

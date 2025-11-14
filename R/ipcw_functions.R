@@ -8,7 +8,7 @@
 # PROGRAMMER: C Wiener
 
 
-#' Convert data to long -- data preparation for IPCW
+#' Convert data to long -- data preparation for IPCW (STEP 1)
 #'
 #' @param df         dataframe containing time to event data
 #' @param event_var  event indicator variable name
@@ -35,7 +35,7 @@ convert_to_long <- function(df,
     t_obs = t
   )
   
-  # Convert df to long for pooled logistic regression
+  ## STEP 1: Convert df to long for pooled logistic regression ----
   df_long <- survSplit(Surv(t, event_var)~.,
                        data=df, 
                        # Variable with event indicator
@@ -62,18 +62,24 @@ convert_to_long <- function(df,
 ipcw <- function(df_long, 
                  model_form){
   
+  ## STEP 2: Exclude intervals where events occur ----
   df_long_no_events <- subset(df_long, delta == 0)
   
+  # OPTIONAL: If time is modeled as an indictor with interactions with the rest 
+  # of the model covariates, we can remove time points where no censoring happens
+  # for anyone. 
   if (grepl("t_f*", model_form)){
     df_long_no_events <- df_long_no_events |> 
       # Remove intervals where everyone is uncensored (not needed for model fitting)  
       dplyr::filter(!all(not_censored == 1), .by = tstart)
   }
   
+  ## STEP 3: Estimate interval-specific probability of remaining uncensored ----
+  
   logit_den <- glm(as.formula(paste0("not_censored ~ ", model_form)),
                    data=df_long_no_events, family='binomial')
   
-  ### Predicted probabilities of remaining uncensored in each time interval ----
+  ### Predicted probabilities of remaining uncensored in each time interval
   df_long_no_events$pr_c_den <- predict(logit_den, 
                                         type='response') # predicted probabilities
   
@@ -129,7 +135,7 @@ compare_cumul_inc <- function(df,
     event_var = {{event_var}}
   )
   
-  ## Fit weighted KM
+  ## STEP 6: Fit weighted KM ----
   kmw <- survfit(Surv(tstart, t, delta) ~ 1, 
                  data=df_long, 
                  weights = ipcw)

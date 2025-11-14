@@ -17,9 +17,14 @@ cutoff_followup <- function(end_of_fup, path = "data/lau.csv"){
   
   lau |> 
     dplyr::mutate(
-      dthev = dplyr::if_else(t > 3, 0, dthev),
-      artev = dplyr::if_else(t > 3, 0, artev),
-      t = pmin(t, 3)*365.25 # convert time to days
+      dthev = dplyr::if_else(t > end_of_fup, 0, dthev),
+      artev = dplyr::if_else(t > end_of_fup, 0, artev),
+      eventtype = dplyr::case_when(
+        dthev == 1 ~ 2,
+        artev == 1 ~ 1,
+        TRUE ~ 0
+      ),
+      t = pmin(t, end_of_fup)*365.25 # convert time to days
     )
 }
 
