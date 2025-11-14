@@ -12,8 +12,8 @@ library(dplyr)
 library(survival)
 library(ggplot2)
 
-source("R/create_analytic_dataset_lau.R")
-source("R/r_informative_censoring_lau.R")
+source("R/helper_functions.R")
+source("R/ipcw_functions.R")
 
 end_time <- 3 # end time in years
 
@@ -24,7 +24,7 @@ lau <- cutoff_followup(end_of_fup = end_time,
 
 lau$t <- as.integer(lau$t)
 # combine admin censoring and art censoring
-lau$cens <- as.numeric(lau_cc$eventtype %in% 0:1)
+lau$cens <- as.numeric(lau$eventtype %in% 0:1)
 
 # descriptive statistics on censoring
 
@@ -32,7 +32,7 @@ lau$cens <- as.numeric(lau_cc$eventtype %in% 0:1)
 
 # Create splines for CD4
 cd4_splines <- qrspline(lau$cd4nadir, 
-                        knots = quantile(lau$cd4nadir, probs = c(0.1, 0.2, 0.5)))
+                        knots = quantile(lau$cd4nadir, probs = c(0.33, 0.67)))
 cd4_colnames <- paste0("cd4_spline_", seq_len(ncol(cd4_splines)))
 colnames(cd4_splines) <- cd4_colnames
 
@@ -55,7 +55,7 @@ lau_long <- convert_to_long(lau_cc,
 # Create splines for time on the interval data frame using knots from the original
 # times
 
-time_splines <- qrspline(lau_long$tstart, # tstart from long
+time_splines <- qrspline(lau_long$t, # t from long
                          knots = quantile(lau$t, probs = c(0.25, 0.5, 0.75)))
 
 time_colnames <- paste0("time_spline_", seq_len(ncol(time_splines)))
@@ -74,7 +74,7 @@ weighted_df <- ipcw(lau_long_cc,
                     # The spline basis for time is interacted with the CD4 spline
                     # basic, an indicator for race, and indicator for baseline 
                     # injection drug use. 
-                    model_form = sprintf("(%s)*(%s + black + BASEIDU)", 
+                    model_form = sprintf("(%s)*(%s)", 
                                          paste0(time_colnames, collapse = "+"),
                                          paste0(cd4_colnames, collapse = "+")))
 # diagnostics
@@ -88,4 +88,7 @@ summary(weighted_df$ipcw)
 # compare IP cumulative incidence function + naive cumulative incidence. 
 results <- compare_cumul_inc(lau, weighted_df, dthev)
 results$cum_inc_plot 
-.
+
+results$cum_inc_fns |> 
+  dplyr::filter(time >= 365*end_time)
+
