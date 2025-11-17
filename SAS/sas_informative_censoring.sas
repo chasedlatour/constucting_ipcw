@@ -17,10 +17,10 @@ Last edit: Chase Latour 10/20/2025
 
 
 %*SET FILE PATH FOR DATASET;
-%let source = C:\Mac\Home\Desktop\IPCW-tutorial\;
+%let source = ../data/;
 
 
-
+libname rw "&source"; * reading out data to compare to R;
 
 /********************************************************************************************************************
 
@@ -162,6 +162,10 @@ proc sql;
 data df_long4;
 set df_long3;
 	where n_row ne n_uncensored;
+run;
+
+data rw.df_long4;
+	set df_long4;
 run;
 
 
