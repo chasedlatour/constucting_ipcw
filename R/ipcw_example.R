@@ -8,6 +8,7 @@
 
 # Load packages, source scripts, read in data -----------------------------
 
+library(tidyr)
 library(dplyr)
 library(survival)
 library(ggplot2)
@@ -26,7 +27,22 @@ lau$t <- as.integer(lau$t)
 # combine admin censoring and art censoring
 lau$cens <- as.numeric(lau$eventtype %in% 0:1)
 
-# descriptive statistics on censoring
+# descriptive statistics on censoring -----------------------
+
+# Get quintiles of cd4 counts for descriptive purposes
+quintiles <- quantile(lau$cd4nadir, probs = c(0.2, 0.4, 0.6, 0.8, 1))
+quintiles
+
+descrip <- lau %>% 
+  mutate(cd4_quintiles = case_when(cd4nadir <= quintiles[[1]] ~ 1,
+                                   cd4nadir <= quintiles[[2]] ~ 2,
+                                   cd4nadir <= quintiles[[3]] ~ 3,
+                                   cd4nadir <= quintiles[[4]] ~ 4,
+                                   cd4nadir <= quintiles[[5]] ~ 5)) 
+
+table(descrip$cd4_quintiles, descrip$eventtype)
+round(prop.table(table(descrip$cd4_quintiles, descrip$eventtype), margin = 2)*100, 0)
+
 
 # Create quadratic restricted splines for CD4 count -----------------------
 
