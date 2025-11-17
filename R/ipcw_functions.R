@@ -65,7 +65,7 @@ ipcw <- function(df_long,
   ## STEP 2: Exclude intervals where events occur ----
   df_long_no_events <- subset(df_long, delta == 0)
   
-  # OPTIONAL: If time is modeled as an indictor with interactions with the rest 
+  # OPTIONAL: If time is modeled as an indicator with interactions with the rest 
   # of the model covariates, we can remove time points where no censoring happens
   # for anyone. 
   if (grepl("t_f*", model_form)){
