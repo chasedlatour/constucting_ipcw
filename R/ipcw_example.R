@@ -3,7 +3,7 @@
 #             address informative censoring conditional on measured variables.
 # PROGRAMMER: CD Latour, C Wiener, PN Zivich
 #
-# REQUIRES:   Lau (?) data, ipcw_functions.R, helper_functions.R
+# REQUIRES:   Lau data, ipcw_functions.R, helper_functions.R
 
 
 # Load packages, source scripts, read in data -----------------------------
@@ -24,7 +24,7 @@ lau <- cutoff_followup(end_of_fup = end_time,
 
 lau$t <- as.integer(lau$t)
 # combine admin censoring and art censoring
-lau$cens <- as.numeric(lau$eventtype %in% 0:1)
+lau$cens <- as.numeric(lau$eventtype == 1)
 
 # descriptive statistics on censoring
 
