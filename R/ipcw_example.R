@@ -23,7 +23,8 @@ lau <- cutoff_followup(end_of_fup = end_time,
 
 
 lau$t <- as.integer(lau$t)
-# combine admin censoring and art censoring
+
+# censor at ART initiation
 lau$cens <- as.numeric(lau$eventtype == 1)
 
 # descriptive statistics on censoring
@@ -39,6 +40,25 @@ colnames(cd4_splines) <- cd4_colnames
 # Concatenate CD4 splines onto the lau data
 lau_cc <- cbind(lau, cd4_splines)
 
+# Table S3: Descriptive statistics: ART initiation, LTFU, and event by CD4 count
+
+cd4_quintile <- quantile(lau$cd4nadir,probs = c(0, 0.2, 0.4, 0.6, 0.8, 1))
+
+lau_cc |> 
+  dplyr::mutate(cd4_group = cut(cd4nadir, cd4_quintile,
+                                include.lowest = T)) |> 
+  group_by(cd4_group) |> 
+  dplyr::summarize(
+    cens_ltfu_admin = sum(eventtype == 0),
+    cens_art_init = sum(artev == 1),
+    obs_evt = sum(dthev == 1), 
+    total = n()
+  ) |> 
+  dplyr::mutate(
+    across(.cols = -c(cd4_group, total),
+           .fn = \(x)sprintf("%3.0f (%2.0f%%)", x, 100*x/total)
+           )
+  )
 
 # Convert data to long ----------------------------------------------------
 
