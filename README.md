@@ -1,4 +1,4 @@
-# constucting_ipcw
+# constructing_ipcw
 
 This repository contains SAS and R code for the manuscript [xxxx] in which we describe and illustrate how to construct inverse probability of censoring weights to address informative right-censoring due to loss to follow-up. This repository was created as an R project, and can easily be cloned in R Studio for replication. We use the `renv` package to manage package versions. The data and SAS code can be downloaded and used in SAS statistical software.
 
