@@ -12,7 +12,8 @@
 #'
 #' @param df         dataframe containing time to event data
 #' @param event_var  event indicator variable name
-#' @param censor_var censor indicator variable name
+#' @param censor_var censor indicator variable name (only for the one you will use
+#' in the censoring model)
 #' @param end_of_fup final day of follow-up to estimate weights
 #' @param interval_length how to coarsen time
 #'
@@ -45,6 +46,7 @@ convert_to_long <- function(df,
   
   df_long$t_f <- as.factor(df_long$tstart)
   
+  # create time-varying indicator for the censoring type you are modeling in IPCW
   df_long$not_censored <- with(df_long, as.numeric(!(censor_var == 1 & (t_obs == t))))
   
   df_long
