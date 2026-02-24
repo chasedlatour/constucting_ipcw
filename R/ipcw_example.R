@@ -124,7 +124,21 @@ summary(weighted_df$ipcw)
 # Step 7
 # compare IP cumulative incidence function + naive cumulative incidence. 
 results <- compare_cumul_inc(lau, weighted_df, dthev)
-results$cum_inc_plot 
+results$cum_inc_plot+
+  scale_x_continuous(
+    breaks = c(365,730,1095),
+    labels = c("1", "2", "3")
+  ) +
+  xlab("Years since December 6, 1995")+
+  ylab("Cumulative Incidence") +
+  scale_colour_grey(
+    labels = c("IPCW", "Unweighted"),
+    name = NULL
+  ) +
+  theme_classic(base_size = 16)+
+  theme(legend.position = c(0.2, 0.75))
+
+
 
 results$cum_inc_fns |> 
   dplyr::filter(time >= 365*end_time)
