@@ -7,7 +7,7 @@
 
 
 # Load packages, source scripts, read in data -----------------------------
-
+renv::restore() # Pull in the packages from the library
 library(tidyr)
 library(dplyr)
 library(survival)
@@ -49,7 +49,7 @@ round(prop.table(table(descrip$cd4_quintiles, descrip$eventtype), margin = 2)*10
 
 # Create splines for CD4 -- knots at the 33rd and 67th percentiles for CD4 count
 cd4_splines <- qrspline(lau$cd4nadir, 
-                        knots = quantile(lau$cd4nadir, probs = c(0.33, 0.67)))
+                        knots = quantile(lau$cd4nadir, probs = c(0.2, 0.4, 0.6, 0.8))) # Previously: probs = c(0.33, 0.67)
 cd4_colnames <- paste0("cd4_spline_", seq_len(ncol(cd4_splines)))
 colnames(cd4_splines) <- cd4_colnames
 
