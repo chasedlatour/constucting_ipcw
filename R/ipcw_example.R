@@ -47,7 +47,7 @@ round(prop.table(table(descrip$cd4_quintiles, descrip$eventtype), margin = 2)*10
 
 # Create quadratic restricted splines for CD4 count -----------------------
 
-# Create splines for CD4 -- knots at the 33rd and 67th percentiles for CD4 count
+# Create splines for CD4 -- knots at the quintiles for CD4 count
 cd4_splines <- qrspline(lau$cd4nadir, 
                         knots = quantile(lau$cd4nadir, probs = c(0.2, 0.4, 0.6, 0.8))) # Previously: probs = c(0.33, 0.67)
 cd4_colnames <- paste0("cd4_spline_", seq_len(ncol(cd4_splines)))
@@ -92,7 +92,7 @@ lau_long <- convert_to_long(lau_cc,
 # times - knots at teh 25th, 50th, and 75th percentiles of follow-up
 
 time_splines <- qrspline(lau_long$t, # t from long
-                         knots = quantile(lau$t, probs = c(0.25, 0.5, 0.75)))
+                         knots = quantile(lau$t, probs = c(0.2, 0.4, 0.6, 0.8))) # Previously: probs = c(0.25, 0.5, 0.75)
 
 time_colnames <- paste0("time_spline_", seq_len(ncol(time_splines)))
 colnames(time_splines) <- time_colnames
@@ -108,8 +108,7 @@ lau_long_cc <- cbind(lau_long, time_splines)
 weighted_df <- ipcw(lau_long_cc,
                     # Modeling time and CD4 as restricted quadratic splines. 
                     # The spline basis for time is interacted with the CD4 spline
-                    # basic, an indicator for race, and indicator for baseline 
-                    # injection drug use. 
+                    # basis. 
                     model_form = sprintf("(%s)*(%s)", 
                                          paste0(time_colnames, collapse = "+"),
                                          paste0(cd4_colnames, collapse = "+")))
