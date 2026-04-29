@@ -37,7 +37,7 @@ cutoff_followup <- function(end_of_fup, path = "data/lau.csv"){
 #' @returns data frame of the original vector and the splines. 
 
 qrspline <- function(x, 
-                     knots = quantile(x, probs = c(0.2, 0.4, 0.6, 0.8))){
+                     knots = quantile(x, probs = c(0.05, 0.275, 0.5, 0.725, 0.95))){
   
   upper_tail_restriction <- ifelse(x > max(knots), (x - max(knots))^2, 0)
   # create restricted quadratic splines
