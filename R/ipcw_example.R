@@ -33,7 +33,7 @@ lau$cens <- as.numeric(lau$eventtype == 1)
 
 # Create splines for CD4
 cd4_splines <- qrspline(lau$cd4nadir, 
-                        knots = quantile(lau$cd4nadir, probs = c(0.2, 0.4, 0.6, 0.8)))
+                        knots = quantile(lau$cd4nadir, probs = c(0.05, 0.275, 0.5, 0.725, 0.95)))
 cd4_colnames <- paste0("cd4_spline_", seq_len(ncol(cd4_splines)))
 colnames(cd4_splines) <- cd4_colnames
 
@@ -76,7 +76,7 @@ lau_long <- convert_to_long(lau_cc,
 # times
 
 time_splines <- qrspline(lau_long$t, # t from long
-                         knots = quantile(lau$t, probs = c(0.2, 0.4, 0.6, 0.8)))
+                         knots = quantile(lau$t, probs = c(0.05, 0.275, 0.5, 0.725, 0.95)))
 
 time_colnames <- paste0("time_spline_", seq_len(ncol(time_splines)))
 colnames(time_splines) <- time_colnames
@@ -89,18 +89,17 @@ lau_long_cc <- cbind(lau_long, time_splines)
 # Estimate IPCW & add to data frame -------------------------------
 
 # Steps 2 - 5
+
 weighted_df <- ipcw(lau_long_cc,
                     # Modeling time and CD4 as restricted quadratic splines. 
                     # The spline basis for time is interacted with the CD4 spline
                     # basic, an indicator for race, and indicator for baseline 
                     # injection drug use. 
-                    model_form = sprintf("(%s)*(%s)", 
+                    model_form = sprintf("(%s) + (%s) + cd4nadir:t", 
                                          paste0(time_colnames, collapse = "+"),
                                          paste0(cd4_colnames, collapse = "+")))
 # diagnostics
 summary(weighted_df$ipcw)
-
-
 
 # Estimate weighted and naive incidence functions and compare -------------
 
