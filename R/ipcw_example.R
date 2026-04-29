@@ -7,7 +7,8 @@
 
 
 # Load packages, source scripts, read in data -----------------------------
-
+renv::restore() # Pull in the packages from the library
+library(tidyr)
 library(dplyr)
 library(survival)
 library(ggplot2)
@@ -27,11 +28,26 @@ lau$t <- as.integer(lau$t)
 # censor at ART initiation
 lau$cens <- as.numeric(lau$eventtype == 1)
 
-# descriptive statistics on censoring
+# descriptive statistics on censoring -----------------------
+
+# Get quintiles of cd4 counts for descriptive purposes
+quintiles <- quantile(lau$cd4nadir, probs = c(0.2, 0.4, 0.6, 0.8, 1))
+quintiles
+
+descrip <- lau %>% 
+  mutate(cd4_quintiles = case_when(cd4nadir <= quintiles[[1]] ~ 1,
+                                   cd4nadir <= quintiles[[2]] ~ 2,
+                                   cd4nadir <= quintiles[[3]] ~ 3,
+                                   cd4nadir <= quintiles[[4]] ~ 4,
+                                   cd4nadir <= quintiles[[5]] ~ 5)) 
+
+table(descrip$cd4_quintiles, descrip$eventtype)
+round(prop.table(table(descrip$cd4_quintiles, descrip$eventtype), margin = 2)*100, 0)
+
 
 # Create quadratic restricted splines for CD4 count -----------------------
 
-# Create splines for CD4
+# Create splines for CD4 -- knots at the quintiles for CD4 count
 cd4_splines <- qrspline(lau$cd4nadir, 
                         knots = quantile(lau$cd4nadir, probs = c(0.05, 0.275, 0.5, 0.725, 0.95)))
 cd4_colnames <- paste0("cd4_spline_", seq_len(ncol(cd4_splines)))
@@ -73,7 +89,7 @@ lau_long <- convert_to_long(lau_cc,
 # Create quadratic restricted splines for time ----------------------------
 
 # Create splines for time on the interval data frame using knots from the original
-# times
+# times - knots at teh 25th, 50th, and 75th percentiles of follow-up
 
 time_splines <- qrspline(lau_long$t, # t from long
                          knots = quantile(lau$t, probs = c(0.05, 0.275, 0.5, 0.725, 0.95)))
@@ -98,15 +114,30 @@ weighted_df <- ipcw(lau_long_cc,
                     model_form = sprintf("(%s) + (%s) + cd4nadir:t", 
                                          paste0(time_colnames, collapse = "+"),
                                          paste0(cd4_colnames, collapse = "+")))
-# diagnostics
+
+# Step 6 -- Evaluate the distribution of weights at each time point
 summary(weighted_df$ipcw)
 
 # Estimate weighted and naive incidence functions and compare -------------
 
-# Step 6
+# Step 7
 # compare IP cumulative incidence function + naive cumulative incidence. 
 results <- compare_cumul_inc(lau, weighted_df, dthev)
-results$cum_inc_plot 
+results$cum_inc_plot+
+  scale_x_continuous(
+    breaks = c(365,730,1095),
+    labels = c("1", "2", "3")
+  ) +
+  xlab("Years since December 6, 1995")+
+  ylab("Cumulative Incidence") +
+  scale_colour_grey(
+    labels = c("IPCW", "Unweighted"),
+    name = NULL
+  ) +
+  theme_classic(base_size = 16)+
+  theme(legend.position = c(0.2, 0.75))
+
+
 
 results$cum_inc_fns |> 
   dplyr::filter(time >= 365*end_time)
