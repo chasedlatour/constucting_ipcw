@@ -49,7 +49,7 @@ round(prop.table(table(descrip$cd4_quintiles, descrip$eventtype), margin = 2)*10
 
 # Create splines for CD4 -- knots at the quintiles for CD4 count
 cd4_splines <- qrspline(lau$cd4nadir, 
-                        knots = quantile(lau$cd4nadir, probs = c(0.2, 0.4, 0.6, 0.8))) # Previously: probs = c(0.33, 0.67)
+                        knots = quantile(lau$cd4nadir, probs = c(0.05, 0.275, 0.5, 0.725, 0.95)))
 cd4_colnames <- paste0("cd4_spline_", seq_len(ncol(cd4_splines)))
 colnames(cd4_splines) <- cd4_colnames
 
@@ -92,7 +92,7 @@ lau_long <- convert_to_long(lau_cc,
 # times - knots at teh 25th, 50th, and 75th percentiles of follow-up
 
 time_splines <- qrspline(lau_long$t, # t from long
-                         knots = quantile(lau$t, probs = c(0.2, 0.4, 0.6, 0.8))) # Previously: probs = c(0.25, 0.5, 0.75)
+                         knots = quantile(lau$t, probs = c(0.05, 0.275, 0.5, 0.725, 0.95)))
 
 time_colnames <- paste0("time_spline_", seq_len(ncol(time_splines)))
 colnames(time_splines) <- time_colnames
@@ -105,18 +105,18 @@ lau_long_cc <- cbind(lau_long, time_splines)
 # Estimate IPCW & add to data frame -------------------------------
 
 # Steps 2 - 5
+
 weighted_df <- ipcw(lau_long_cc,
                     # Modeling time and CD4 as restricted quadratic splines. 
                     # The spline basis for time is interacted with the CD4 spline
-                    # basis. 
-                    model_form = sprintf("(%s)*(%s)", 
+                    # basic, an indicator for race, and indicator for baseline 
+                    # injection drug use. 
+                    model_form = sprintf("(%s) + (%s) + cd4nadir:t", 
                                          paste0(time_colnames, collapse = "+"),
                                          paste0(cd4_colnames, collapse = "+")))
 
 # Step 6 -- Evaluate the distribution of weights at each time point
 summary(weighted_df$ipcw)
-
-
 
 # Estimate weighted and naive incidence functions and compare -------------
 
