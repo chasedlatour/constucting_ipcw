@@ -447,7 +447,7 @@ proc sql noprint;
 
 %put Number of spline terms for CD4: &n_cd4;
 
-*Calculate the number of interaction terms;
+*Calculate the number of interaction terms -- This code is helpful if include interaction terms between the spline basis functions.;
 %let nint = %eval(&n_time * &n_cd4);
 %put Number of interaction terms: &nint;
 
@@ -456,7 +456,7 @@ set lau_long3;
 
 	array time[&n_time] t_leave_qrs:;
 	array cd4[&n_cd4] cd4nadir_qrs:;
-	array interaction[&nint] int1-int16;
+	array interaction[&nint] int1-int&nint;
 
 	do a=1 to &n_time;
 		do b=1 to &n_cd4;
@@ -471,7 +471,7 @@ run;
 
 * Fit pooled logistic model;
 PROC LOGISTIC DATA=lau_long3 DESC noprint; 
-	MODEL not_censored= t_leave_qrs: cd4nadir_qrs: int:; 
+	MODEL not_censored= t_leave_qrs: cd4nadir_qrs: t_leave*cd4nadir; *int:; 
 	OUTPUT OUT=den P=d; *Get the probably of remaining uncensored in each interval;
 RUN;
 *Look at distribution of interval-specific probabilities;

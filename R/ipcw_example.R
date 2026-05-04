@@ -108,9 +108,7 @@ lau_long_cc <- cbind(lau_long, time_splines)
 
 weighted_df <- ipcw(lau_long_cc,
                     # Modeling time and CD4 as restricted quadratic splines. 
-                    # The spline basis for time is interacted with the CD4 spline
-                    # basic, an indicator for race, and indicator for baseline 
-                    # injection drug use. 
+                    # The continuous versions of time and CD4 are interacted
                     model_form = sprintf("(%s) + (%s) + cd4nadir:t", 
                                          paste0(time_colnames, collapse = "+"),
                                          paste0(cd4_colnames, collapse = "+")))
